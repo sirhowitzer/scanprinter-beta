@@ -1,0 +1,3 @@
+create an "assets" folder in your project, next to "src" or "target" folder
+upload your data table (recommended csv)
+in main.rs change the "csv_reader::read_from_path("assets/nobrandmart-products-list.csv")?;" to "csv_reader::read_from_path("assets/YOUR_FILE_NAME.csv")?;"

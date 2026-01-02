@@ -6,14 +6,14 @@ use std::ptr;
 mod csv_reader;
 
 fn main() -> iced::Result {
-
+    println!("[=====================================]");
     iced::application(Scanprinter::new, Scanprinter::update_barcode_input, Scanprinter::view)
         .window_size(iced::Size::new(800.0, 600.0))
         .run()
 }
 
-fn load_data() -> PolarsResult<DataFrame> {
-    let df = csv_reader::read_from_path("assets/doktorfoodmart-products-list.csv")?;
+fn load_data_table() -> PolarsResult<DataFrame> {
+    let df = csv_reader::read_from_path("assets/nobrandmart-products-list.csv")?;
     Ok(df)
 }
 
@@ -39,26 +39,38 @@ impl Scanprinter {
         Scanprinter::default()
     }
     pub fn update_barcode_input(&mut self, message:Message) {
-		let dfq = load_data();
+		let dfq = load_data_table();
 		match message {
 		    Message::BarcodeInputContentChanged(content) => {
 		        self.content = content;				
 			}
 			Message::BarcodeInputSubmit => {
-				println!("Submitted Barcode: {}", self.content);
+				let product_barcode: i64 = self.content.parse().unwrap();
 
-				let barcode: i64 = self.content.parse().unwrap();
-				//let barcode: i64 = 1231023;
-				//println!("The type of x is: {}", type_of(&self.content));
+                let result = dfq.expect("CANNOT LOAD DATA TABLE DURING THE BarcodeInputSubmit").lazy()
+                    .filter(col("Barcode").eq(lit(product_barcode)))
+                    .collect()
+                    .expect("INVALID BARCODE!");
 
-				let filtered = dfq.expect("Expecto Patronum").lazy()
-					.filter(col("Barcode").eq(lit(barcode)))
-					.collect();
-				
-				
-				println!("{:?}", filtered);
+                // Extract product_name and product_price as String
+                let product_name = result.column("Product Name")
+                    .expect("Column 'Product Name' not found")
+                    .get(0)
+                    .map(|v| v.to_string())
+                    .unwrap_or_default();
 
-				self.content = String::new();
+                let product_price = result.column("Product Price")
+                    .expect("Column 'Price' not found")
+                    .get(0)
+                    .map(|v| v.to_string())
+                    .unwrap_or_default();
+
+                println!("Submitted Barcode: {}", self.content);
+                println!("Product Name: {}", product_name);
+                println!("Product Price: {}", product_price);
+                println!("[=====================================]");
+
+                self.content = String::new();
 			}
 		}	
     }
