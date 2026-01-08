@@ -4,10 +4,14 @@ use polars::prelude::*;
 use std::ptr;
 
 mod csv_reader;
+mod print_handler;
 
 fn main() -> iced::Result {
     println!("[=====================================]");
-    iced::application(Scanprinter::new, Scanprinter::update_barcode_input, Scanprinter::view)
+
+    print_handler::save_template();
+
+    iced::application(Scanprinter::new, Scanprinter::update, Scanprinter::view)
         .window_size(iced::Size::new(800.0, 600.0))
         .run()
 }
@@ -24,7 +28,9 @@ fn type_of<T>(_: &T) -> &'static str {
 
 #[derive(Default)]
 struct Scanprinter {
-	content: String,
+	input_barcode_content: String,
+    product_name_content: String,
+    product_price_content: String,
 	df: DataFrame,
 }
 
@@ -38,14 +44,17 @@ impl Scanprinter {
     fn new() -> Self {
         Scanprinter::default()
     }
-    pub fn update_barcode_input(&mut self, message:Message) {
+    pub fn update(&mut self, message:Message) {
 		let dfq = load_data_table();
+        let mut product_barcode: i64 = 0;
+        let mut product_name: String = "".to_string();
+        let mut product_price: String = "".to_string();
 		match message {
-		    Message::BarcodeInputContentChanged(content) => {
-		        self.content = content;				
+		    Message::BarcodeInputContentChanged(input_barcode_content) => {
+		        self.input_barcode_content = input_barcode_content;				
 			}
 			Message::BarcodeInputSubmit => {
-				let product_barcode: i64 = self.content.parse().unwrap();
+				product_barcode = self.input_barcode_content.parse().unwrap();
 
                 let result = dfq.expect("CANNOT LOAD DATA TABLE DURING THE BarcodeInputSubmit").lazy()
                     .filter(col("Barcode").eq(lit(product_barcode)))
@@ -53,24 +62,28 @@ impl Scanprinter {
                     .expect("INVALID BARCODE!");
 
                 // Extract product_name and product_price as String
-                let product_name = result.column("Product Name")
+                product_name = result.column("Product Name")
                     .expect("Column 'Product Name' not found")
                     .get(0)
                     .map(|v| v.to_string())
                     .unwrap_or_default();
 
-                let product_price = result.column("Product Price")
+                product_price = result.column("Product Price")
                     .expect("Column 'Price' not found")
                     .get(0)
                     .map(|v| v.to_string())
                     .unwrap_or_default();
 
-                println!("Submitted Barcode: {}", self.content);
+                println!("Submitted Barcode: {}", self.input_barcode_content);
                 println!("Product Name: {}", product_name);
                 println!("Product Price: {}", product_price);
                 println!("[=====================================]");
 
-                self.content = String::new();
+                self.product_name_content = product_name;
+
+                self.product_price_content = product_price;
+
+                self.input_barcode_content = String::new();
 			}
 		}	
     }
@@ -83,14 +96,19 @@ impl Scanprinter {
 			],
             row![
             	Space::new().width(20),
-            	text_input("Type Barcode Here...", &self.content.clone()).width(Fill).on_input(Message::BarcodeInputContentChanged).on_submit(Message::BarcodeInputSubmit),
+            	text_input("Type Barcode Here...", &self.input_barcode_content.clone()).width(Fill).on_input(Message::BarcodeInputContentChanged).on_submit(Message::BarcodeInputSubmit),
             	Space::new().width(20),
             ],
             row![
             	Space::new().width(Fill),
             	button("Print").on_press(Message::BarcodeInputSubmit),
             	Space::new().width(Fill)
-            ]
+            ],
+            text("Product Name:").size(20).width(Fill).center(),
+            text(&self.product_name_content).size(20).width(Fill).center(),
+
+            text("Product Price:").size(20).width(Fill).center(),
+            text(&self.product_price_content).size(20).width(Fill).center(),
         ].spacing(10)
     }
 }
